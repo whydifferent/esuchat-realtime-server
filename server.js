@@ -196,7 +196,7 @@ io.on("connection", async (socket) => {
   const port = process.env.PORT || 3000;
 
   server.listen(port, "0.0.0.0", () => {
-    console.log("2go realtime server running on port " + port);
+    console.log("ESUCHAT realtime server running on port " + port);
   });
 })().catch((err) => {
   console.error("Server startup error:", err);
