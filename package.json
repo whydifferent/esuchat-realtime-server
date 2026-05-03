@@ -1,1 +1,1 @@
-{"name":"agbani-2go-realtime","version":"1.0.0","main":"server.js","scripts":{"start":"node server.js"},"dependencies":{"cors":"latest","dotenv":"latest","express":"latest","mysql2":"latest","socket.io":"latest"}}
+{"name":"ESUCHAT","version":"1.0.0","main":"server.js","scripts":{"start":"node server.js"},"dependencies":{"cors":"latest","dotenv":"latest","express":"latest","mysql2":"latest","socket.io":"latest"}}
