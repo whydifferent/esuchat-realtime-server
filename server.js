@@ -8,8 +8,11 @@ const { Server } = require("socket.io");
 
 const app = express();
 
+/* 🔒 Restrict CORS (replace with your real domain) */
 app.use(cors({
-  origin: "*",
+  origin: [
+    "https://purple-nightingale-405503.hostingersite.com"
+  ],
   methods: ["GET", "POST"]
 }));
 
@@ -17,19 +20,21 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: [
+      "https://purple-nightingale-405503.hostingersite.com"
+    ],
     methods: ["GET", "POST"]
   }
 });
 
 let db;
 
+/* ✅ ONLINE COUNT */
 async function onlineCount() {
   try {
     const [rows] = await db.query(
       "SELECT COUNT(*) AS c FROM users WHERE is_online = 1"
     );
-
     return rows[0].c;
   } catch (err) {
     console.error("Online count error:", err.message);
@@ -37,14 +42,16 @@ async function onlineCount() {
   }
 }
 
+/* ✅ PRIVATE ROOM */
 function privateRoom(a, b) {
   const first = Math.min(Number(a), Number(b));
   const second = Math.max(Number(a), Number(b));
-
   return `private_${first}_${second}`;
 }
 
+/* 🔥 SOCKET CONNECTION */
 io.on("connection", async (socket) => {
+
   const userId = parseInt(socket.handshake.query.user_id || "0", 10);
   const name = socket.handshake.query.name || "user";
 
@@ -63,94 +70,62 @@ io.on("connection", async (socket) => {
         is_online: true,
         online_count: await onlineCount()
       });
+
     } catch (err) {
       console.error("Presence update error:", err.message);
     }
   }
 
+  /* GROUP EVENTS */
   socket.on("join_group", (data) => {
-    if (!data || !data.group_id) return;
-
-    const room = "group_" + data.group_id;
-
-    socket.join(room);
-
-    console.log("Joined group room:", room);
+    if (!data?.group_id) return;
+    socket.join("group_" + data.group_id);
   });
 
-  socket.on("group_message", (message) => {
-    if (!message || !message.group_id) return;
-
-    const room = "group_" + message.group_id;
-
-    io.to(room).emit("group_message", message);
-
-    console.log("Group message sent to:", room);
+  socket.on("group_message", (msg) => {
+    if (!msg?.group_id) return;
+    io.to("group_" + msg.group_id).emit("group_message", msg);
   });
 
   socket.on("group_typing", (data) => {
-    if (!data || !data.group_id) return;
-
-    const room = "group_" + data.group_id;
-
-    socket.to(room).emit("group_typing", data);
+    if (!data?.group_id) return;
+    socket.to("group_" + data.group_id).emit("group_typing", data);
   });
 
   socket.on("group_message_deleted", (data) => {
-    if (!data || !data.group_id || !data.message_id) return;
-
-    const room = "group_" + data.group_id;
-
-    io.to(room).emit("group_message_deleted", {
+    if (!data?.group_id || !data?.message_id) return;
+    io.to("group_" + data.group_id).emit("group_message_deleted", {
       message_id: data.message_id
     });
-
-    console.log("Group message deleted in:", room, "Message:", data.message_id);
   });
 
+  /* PRIVATE EVENTS */
   socket.on("join_private", (data) => {
-    if (!data || !data.room) return;
-
-    const room = "private_" + data.room;
-
-    socket.join(room);
-
-    console.log("Joined private room:", room);
+    if (!data?.room) return;
+    socket.join("private_" + data.room);
   });
 
-  socket.on("private_message", (message) => {
-    if (!message || !message.sender_id || !message.receiver_id) {
-      console.log("Invalid private message payload:", message);
-      return;
-    }
+  socket.on("private_message", (msg) => {
+    if (!msg?.sender_id || !msg?.receiver_id) return;
 
-    const room = privateRoom(message.sender_id, message.receiver_id);
-
-    io.to(room).emit("private_message", message);
-
-    console.log("Private message sent to:", room);
+    const room = privateRoom(msg.sender_id, msg.receiver_id);
+    io.to(room).emit("private_message", msg);
   });
 
   socket.on("private_message_deleted", (data) => {
-    if (!data || !data.room || !data.message_id) return;
+    if (!data?.room || !data?.message_id) return;
 
-    const room = "private_" + data.room;
-
-    io.to(room).emit("private_message_deleted", {
+    io.to("private_" + data.room).emit("private_message_deleted", {
       message_id: data.message_id
     });
-
-    console.log("Private message deleted in:", room, "Message:", data.message_id);
   });
 
   socket.on("private_typing", (data) => {
-    if (!data || !data.room) return;
-
-    const room = "private_" + data.room;
-
-    socket.to(room).emit("private_typing", data);
+    if (!data?.room) return;
+    socket.to("private_" + data.room).emit("private_typing", data);
   });
 
+  /* DISCONNECT */
   socket.on("disconnect", async () => {
     console.log("Disconnected:", socket.id, "User:", userId);
 
@@ -167,19 +142,21 @@ io.on("connection", async (socket) => {
           is_online: false,
           online_count: await onlineCount()
         });
+
       } catch (err) {
-        console.error("Disconnect presence error:", err.message);
+        console.error("Disconnect error:", err.message);
       }
     }
   });
 });
 
+/* 🔥 DATABASE + SERVER START */
 (async () => {
   db = await mysql.createPool({
-    host: process.env.DB_HOST || "127.0.0.1",
-    user: process.env.DB_USER || "root",
-    password: process.env.DB_PASSWORD || "123456",
-    database: process.env.DB_NAME || "agbani_2go_chat",
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
@@ -188,9 +165,10 @@ io.on("connection", async (socket) => {
   const port = process.env.PORT || 3000;
 
   server.listen(port, "0.0.0.0", () => {
-    console.log("2go realtime server running on port " + port);
+    console.log("Realtime server running on port " + port);
   });
+
 })().catch((err) => {
-  console.error("Server startup error:", err);
+  console.error("Startup error:", err);
   process.exit(1);
 });
